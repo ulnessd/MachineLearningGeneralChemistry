@@ -1,105 +1,199 @@
+import sys
 import time
-import tkinter as tk
-from tkinter import filedialog, messagebox
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QPushButton, QLabel, QComboBox,
+    QSlider, QLineEdit, QVBoxLayout, QHBoxLayout, QFileDialog, QGridLayout, QTextEdit, QGroupBox, QScrollArea
+)
+from PyQt5.QtCore import Qt
+import pyqtgraph as pg
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsRegressor
-from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.metrics import mean_absolute_error, explained_variance_score
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from scipy.stats import pearsonr
 
-class MLGui:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Cobber Machine Learning Explorer")
-        self.root.iconbitmap("CobberMLIcon.ico")  # Set the icon for the main window
 
-        self.root.geometry("375x400")  # Example size: 800 pixels wide by 600 pixels high
+class MLGui(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Cobber Machine Learning Explorer")
+        self.setGeometry(100, 100, 1200, 800)  # Increased size for better layout
 
-        # Variables to store data and model
+        # Initialize data and model
         self.data = None
         self.model = None
 
-        # Create widgets
+        # Set up the main widget and layout
+        self.main_widget = QWidget()
+        self.setCentralWidget(self.main_widget)
+        self.layout = QGridLayout()
+        self.main_widget.setLayout(self.layout)
+
+        # Create and add widgets
         self.create_widgets()
 
     def create_widgets(self):
-        # File dialog to open CSV
-        self.open_button = tk.Button(self.root, text="Open CSV", command=self.open_file)
-        self.open_button.pack(pady=10)
+        # Left Panel for Controls
+        self.control_group = QGroupBox("Controls")
+        self.control_layout = QVBoxLayout()
+        self.control_group.setLayout(self.control_layout)
 
-        # ML Algorithm dropdown
-        self.alg_label = tk.Label(self.root, text="Select ML Algorithm")
-        self.alg_label.pack()
+        # Open CSV Button
+        self.open_button = QPushButton("Open CSV")
+        self.open_button.clicked.connect(self.open_file)
+        self.control_layout.addWidget(self.open_button)
 
-        self.algorithms = ["Linear Regression", "Decision Tree", "Random Forest", "Support Vector Machine",
-                           "k-Nearest Neighbors"]
-        self.alg_var = tk.StringVar(self.root)
-        self.alg_var.set(self.algorithms[0])
-        self.alg_menu = tk.OptionMenu(self.root, self.alg_var, *self.algorithms)
-        self.alg_menu.pack(pady=10)
+        # ML Algorithm Selection
+        self.alg_label = QLabel("Select ML Algorithm")
+        self.control_layout.addWidget(self.alg_label)
+
+        self.algorithms = [
+            "Linear Regression", "Decision Tree", "Random Forest",
+            "Support Vector Machine", "k-Nearest Neighbors"
+        ]
+        self.alg_combo = QComboBox()
+        self.alg_combo.addItems(self.algorithms)
+        self.control_layout.addWidget(self.alg_combo)
 
         # Train/Test Split Slider
-        self.split_label = tk.Label(self.root, text="Train/Test Split (%)")
-        self.split_label.pack()
+        self.split_label = QLabel("Train/Test Split (%)")
+        self.control_layout.addWidget(self.split_label)
 
-        self.split_var = tk.DoubleVar(value=80)  # Default value of 80%
-        self.split_slider = tk.Scale(self.root, from_=50, to=90, orient=tk.HORIZONTAL, variable=self.split_var)
-        self.split_slider.pack(pady=10)
+        self.split_slider = QSlider(Qt.Horizontal)
+        self.split_slider.setMinimum(50)
+        self.split_slider.setMaximum(90)
+        self.split_slider.setValue(80)
+        self.split_slider.setTickInterval(5)
+        self.split_slider.setTickPosition(QSlider.TicksBelow)
+        self.control_layout.addWidget(self.split_slider)
 
-        # Button to run ML training
-        self.train_button = tk.Button(self.root, text="Run ML Training", command=self.run_training)
-        self.train_button.pack(pady=10)
+        # Display current split percentage
+        self.split_value_label = QLabel("80% Train / 20% Test")
+        self.control_layout.addWidget(self.split_value_label)
+        self.split_slider.valueChanged.connect(self.update_split_label)
 
-        # Entry for manual predictions
-        self.pred_label = tk.Label(self.root, text="Predict CORNYness")
-        self.pred_label.pack()
+        # Run Training Button
+        self.train_button = QPushButton("Run ML Training")
+        self.train_button.clicked.connect(self.run_training)
+        self.control_layout.addWidget(self.train_button)
 
-        self.x1_entry = tk.Entry(self.root)
-        self.x1_entry.pack(pady=5)
-        self.x1_entry.insert(0, "Enter EARitability")
+        # Prediction Inputs
+        self.pred_label = QLabel("Predict STOCKiness")
+        self.control_layout.addWidget(self.pred_label)
 
-        self.x2_entry = tk.Entry(self.root)
-        self.x2_entry.pack(pady=5)
-        self.x2_entry.insert(0, "Enter aMAIZEingness")
+        self.x1_entry = QLineEdit()
+        self.x1_entry.setPlaceholderText("Enter EARitability")
+        self.control_layout.addWidget(self.x1_entry)
 
-        self.pred_button = tk.Button(self.root, text="Predict CORNYness", command=self.predict_y)
-        self.pred_button.pack(pady=10)
+        self.x2_entry = QLineEdit()
+        self.x2_entry.setPlaceholderText("Enter aMAIZEingness")
+        self.control_layout.addWidget(self.x2_entry)
+
+        self.pred_button = QPushButton("Predict STOCKiness")
+        self.pred_button.clicked.connect(self.predict_y)
+        self.control_layout.addWidget(self.pred_button)
+
+        # Spacer
+        self.control_layout.addStretch()
+
+        # Add Control Panel to the Main Layout
+        self.layout.addWidget(self.control_group, 0, 0, 1, 1)
+
+        # Right Panel for Graphs and Console
+        self.display_group = QGroupBox("Display")
+        self.display_layout = QVBoxLayout()
+        self.display_group.setLayout(self.display_layout)
+
+        # Plot Layout
+        self.plot_layout = QHBoxLayout()
+
+        # Actual vs Predicted Plot
+        self.graph_widget1 = pg.PlotWidget(title="Actual vs Predicted STOCKiness")
+        self.graph_widget1.setBackground('k')
+        self.graph_widget1.showGrid(x=True, y=True)
+        self.graph_widget1.setLabel('left', 'Predicted STOCKiness')
+        self.graph_widget1.setLabel('bottom', 'Actual STOCKiness')
+        self.plot_layout.addWidget(self.graph_widget1)
+
+        # Residuals Plot
+        self.graph_widget2 = pg.PlotWidget(title="Residuals Plot")
+        self.graph_widget2.setBackground('k')
+        self.graph_widget2.showGrid(x=True, y=True)
+        self.graph_widget2.setLabel('left', 'Residuals')
+        self.graph_widget2.setLabel('bottom', 'Actual STOCKiness')
+        self.plot_layout.addWidget(self.graph_widget2)
+
+        self.display_layout.addLayout(self.plot_layout)
+
+        # Embedded Console
+        self.console_group = QGroupBox("Console Output")
+        self.console_layout = QVBoxLayout()
+        self.console_group.setLayout(self.console_layout)
+
+        self.console = QTextEdit()
+        self.console.setReadOnly(True)
+        self.console.setStyleSheet("background-color: black; color: white;")
+        self.console_layout.addWidget(self.console)
+
+        self.display_layout.addWidget(self.console_group)
+
+        # Add Display Panel to the Main Layout
+        self.layout.addWidget(self.display_group, 0, 1, 1, 3)
+
+    def update_split_label(self, value):
+        test_percentage = 100 - value
+        self.split_value_label.setText(f"{value}% Train / {test_percentage}% Test")
+
+    def append_console(self, message):
+        self.console.append(message)
 
     def open_file(self):
-        file_path = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
+        options = QFileDialog.Options()
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Open CSV File", "", "CSV Files (*.csv);;All Files (*)", options=options
+        )
         if file_path:
             try:
                 self.data = pd.read_csv(file_path)
-                messagebox.showinfo("File Loaded", "CSV file loaded successfully!")
+                self.append_console("CSV file loaded successfully!")
+                self.append_console(f"Data Shape: {self.data.shape}\n")
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to load file: {str(e)}")
-
+                self.append_console(f"Failed to load file: {str(e)}\n")
 
     def run_training(self):
         if self.data is not None:
-            X = self.data[['EARitability', 'aMAIZEingness']]
-            Y = self.data['CORNYness']
-            train_size = self.split_var.get() / 100
-            X_train, X_test, Y_train, Y_test = train_test_split(X, Y, train_size=train_size, random_state=42)
+            try:
+                X = self.data[['EARitability', 'aMAIZEingness']].values
+                Y = self.data['STOCKiness'].values
+            except KeyError as e:
+                self.append_console(f"Missing column in data: {e}\n")
+                return
+
+            train_size = self.split_slider.value() / 100
+            X_train, X_test, Y_train, Y_test = train_test_split(
+                X, Y, train_size=train_size, random_state=42
+            )
 
             # Select and train the model based on the user's choice
-            if self.alg_var.get() == "Linear Regression":
+            alg = self.alg_combo.currentText()
+            if alg == "Linear Regression":
                 self.model = LinearRegression()
-            elif self.alg_var.get() == "Decision Tree":
+            elif alg == "Decision Tree":
                 self.model = DecisionTreeRegressor(random_state=42)
-            elif self.alg_var.get() == "Random Forest":
+            elif alg == "Random Forest":
                 self.model = RandomForestRegressor(random_state=42)
-            elif self.alg_var.get() == "Support Vector Machine":
+            elif alg == "Support Vector Machine":
                 self.model = SVR()
-            elif self.alg_var.get() == "k-Nearest Neighbors":
+            elif alg == "k-Nearest Neighbors":
                 self.model = KNeighborsRegressor()
+            else:
+                self.append_console("Unknown algorithm selected.\n")
+                return
 
             # Record the start time
             start_time = time.time()
@@ -115,72 +209,56 @@ class MLGui:
 
             # Calculate performance metrics
             mse = mean_squared_error(Y_test, Y_pred)
-            rmse = mean_squared_error(Y_test, Y_pred, squared=False)
             mae = mean_absolute_error(Y_test, Y_pred)
-            explained_var = explained_variance_score(Y_test, Y_pred)
             r2 = r2_score(Y_test, Y_pred)
 
-            # Residuals analysis
+            # Print the results to the embedded console
+            self.append_console("=== Training Complete ===")
+            self.append_console(f"Algorithm: {alg}")
+            self.append_console(f"Training Time: {training_time:.4f} seconds")
+            self.append_console(f"MSE: {mse:.4f}")
+            self.append_console(f"MAE: {mae:.4f}")
+            self.append_console(f"R²: {r2:.4f}\n")
+
+            # Plot Actual vs Predicted
+            self.graph_widget1.clear()
+            self.graph_widget1.plot(Y_test, Y_pred, pen=None, symbol='o', symbolBrush='b',symbolSize=3)
+
+            # Correctly plot the 45-degree line
+            min_val = min(Y_test.min(), Y_pred.min())
+            max_val = max(Y_test.max(), Y_pred.max())
+            self.graph_widget1.plot([min_val, max_val], [min_val, max_val], pen=pg.mkPen('r', width=2, style=Qt.DashLine))
+
+            self.graph_widget1.setXRange(min_val, max_val)
+            self.graph_widget1.setYRange(min_val, max_val)
+
+            # Plot Residuals
             residuals = Y_test - Y_pred
-            mean_residual = np.mean(residuals)
-            std_residual = np.std(residuals)
+            self.graph_widget2.clear()
+            self.graph_widget2.plot(Y_test, residuals, pen=None, symbol='o', symbolBrush='g',symbolSize=3)
+            self.graph_widget2.plot([min(Y_test), max(Y_test)], [0, 0], pen=pg.mkPen('r', width=2, style=Qt.DashLine))
+            self.graph_widget2.setXRange(min_val, max_val)
 
-            # Pearson correlation coefficient
-            corr_coef, _ = pearsonr(Y_test, Y_pred)
-
-            # Display the results to the user
-            messagebox.showinfo(
-                "Training Complete",
-                f"Model trained successfully!\n"
-                f"Training Time: {training_time:.4f} seconds\n"
-                f"MSE: {mse:.4f}\n"
-                f"RMSE: {rmse:.4f}\n"
-                f"MAE: {mae:.4f}\n"
-                f"R²: {r2:.4f}\n"
-                f"Explained Variance: {explained_var:.4f}\n"
-                f"Pearson Correlation Coefficient: {corr_coef:.4f}\n"
-                f"Mean Residual: {mean_residual:.4f}\n"
-                f"Standard Deviation of Residuals: {std_residual:.4f}"
-            )
-
-            # Plot actual vs predicted values and residuals side by side
-            fig, axs = plt.subplots(1, 2, figsize=(12, 6))
-
-            # Actual vs Predicted plot
-            axs[0].scatter(Y_test, Y_pred)
-            axs[0].plot([Y_test.min(), Y_test.max()], [Y_test.min(), Y_test.max()], 'r--')  # Red dashed line
-            axs[0].set_xlabel("Actual CORNYness")
-            axs[0].set_ylabel("Predicted CORNYness")
-            axs[0].set_title(f"{self.alg_var.get()} - Actual vs Predicted")
-
-            # Residuals plot
-            axs[1].scatter(Y_test, residuals)
-            axs[1].axhline(y=0, color='r', linestyle='--')  # Red dashed line at 0
-            axs[1].set_xlabel("Actual CORNYness")
-            axs[1].set_ylabel("Residuals")
-            axs[1].set_title(f"Residuals Plot for {self.alg_var.get()}")
-
-            plt.tight_layout()
-            plt.show()
         else:
-            messagebox.showwarning("No Data", "Please load a CSV file first.")
+            self.append_console("No data loaded. Please load a CSV file first.\n")
 
     def predict_y(self):
         if self.model is not None:
             try:
-                x1 = float(self.x1_entry.get())
-                x2 = float(self.x2_entry.get())
+                x1 = float(self.x1_entry.text())
+                x2 = float(self.x2_entry.text())
                 y_pred = self.model.predict([[x1, x2]])
-                messagebox.showinfo("Prediction", f"Predicted Y: {y_pred[0]}")
+                self.append_console(f"Predicted STOCKiness: {y_pred[0]:.4f}\n")
             except ValueError:
-                messagebox.showerror("Input Error", "Please enter valid numbers for X1 and X2.")
+                self.append_console("Invalid input. Please enter valid numbers for EARitability and aMAIZEingness.\n")
             except Exception as e:
-                messagebox.showerror("Prediction Error", f"Prediction failed: {str(e)}")
+                self.append_console(f"Prediction failed: {str(e)}\n")
         else:
-            messagebox.showwarning("No Model", "Please train a model first.")
+            self.append_console("No model trained. Please train a model first.\n")
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = MLGui(root)
-    root.mainloop()
+    app = QApplication(sys.argv)
+    window = MLGui()
+    window.show()
+    sys.exit(app.exec_())
